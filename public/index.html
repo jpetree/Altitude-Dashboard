@@ -1059,7 +1059,7 @@ function cardInner(c) {
     <div class="card-header">
       <div class="card-icon editable" onclick="event.stopPropagation();openEditor('${c.id}')" title="Edit name/icon">${icon}</div>
       <div class="card-meta">
-        <div class="card-name ${isCustomName?'custom':'}">${escHtml(name)}</div>
+        <div class="card-name ${isCustomName?'custom':''}">${escHtml(name)}</div>
         <div class="card-image">${escHtml(imgShort)}</div>
       </div>
       <div class="badges">
