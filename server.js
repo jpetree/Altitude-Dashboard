@@ -89,6 +89,13 @@ async function getRemoteDigest(imageName) {
   }
 }
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+}
+
 app.get("/api/containers", async (req, res) => {
   try {
     const containers = await docker.listContainers({ all: true });
@@ -105,7 +112,7 @@ app.get("/api/containers", async (req, res) => {
         let networks = [];
 
         try {
-          const info = await docker.getContainer(c.Id).inspect();
+          const info = await withTimeout(docker.getContainer(c.Id).inspect(), 5000);
           env = info.Config.Env || [];
           volumes = (info.Mounts || []).map((m) => ({
             type: m.Type,
@@ -124,7 +131,7 @@ app.get("/api/containers", async (req, res) => {
         try {
           if (c.State === "running") {
             const container = docker.getContainer(c.Id);
-            const rawStats = await container.stats({ stream: false });
+            const rawStats = await withTimeout(container.stats({ stream: false }), 5000);
             const cpuDelta =
               rawStats.cpu_stats.cpu_usage.total_usage -
               rawStats.precpu_stats.cpu_usage.total_usage;
