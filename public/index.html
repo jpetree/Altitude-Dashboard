@@ -739,7 +739,10 @@ async function loadContainers(showSpinner = false) {
       `<div class="loading"><div class="spinner"></div><div class="loading-text">Loading...</div></div>`;
   }
   try {
-    const res = await fetch('/api/containers');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch('/api/containers', { signal: controller.signal });
+    clearTimeout(timeout);
     if (!res.ok) throw new Error(await res.text());
     const fresh = await res.json();
 
@@ -754,7 +757,7 @@ async function loadContainers(showSpinner = false) {
       prevStates[c.id] = c.state;
     });
 
-    // Update stats
+    // Update stats bar
     const running = fresh.filter(c => c.state === 'running').length;
     document.getElementById('statTotal').textContent = fresh.length;
     document.getElementById('statRunning').textContent = running;
@@ -766,6 +769,9 @@ async function loadContainers(showSpinner = false) {
 
     allContainers = fresh;
     renderCards();
+
+    // Fetch per-container details in background (stats, health, env, volumes)
+    fresh.filter(c => c.state === 'running').forEach(c => loadContainerDetails(c.id));
   } catch (err) {
     document.getElementById('statusDot').className = 'dot error';
     document.getElementById('statusText').textContent = 'DISCONNECTED';
@@ -776,6 +782,19 @@ async function loadContainers(showSpinner = false) {
     showToast('Error: ' + err.message, 'error');
   }
   startRefreshRing();
+}
+
+async function loadContainerDetails(id) {
+  try {
+    const res = await fetch(`/api/containers/${id}/details`);
+    if (!res.ok) return;
+    const details = await res.json();
+    const idx = allContainers.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    allContainers[idx] = { ...allContainers[idx], ...details };
+    const card = document.querySelector(`.card[data-id="${id}"]`);
+    if (card) patchCard(card, allContainers[idx]);
+  } catch (_) {}
 }
 
 // ── Render ──
