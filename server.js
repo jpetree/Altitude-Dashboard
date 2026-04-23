@@ -40,7 +40,7 @@ app.get("/api/containers", async (req, res) => {
           }
         } catch (_) {}
 
-        const ports = c.Ports.filter((p) => p.PublicPort).map((p) => ({
+        const ports = (c.Ports || []).filter((p) => p && p.PublicPort).map((p) => ({
           public: p.PublicPort,
           private: p.PrivatePort,
           type: p.Type,
@@ -52,9 +52,10 @@ app.get("/api/containers", async (req, res) => {
           label["homepage.href"] ||
           (ports.length > 0 ? `http://localhost:${ports[0].public}` : null);
 
+        const names = c.Names || [];
         return {
           id: c.Id.slice(0, 12),
-          name: c.Names[0].replace(/^\//, ""),
+          name: names.length > 0 ? names[0].replace(/^\//, "") : c.Id.slice(0, 12),
           image: c.Image,
           state: c.State,
           status: c.Status,
