@@ -738,11 +738,32 @@ async function loadContainers(showSpinner = false) {
     document.getElementById('gridWrap').innerHTML =
       `<div class="loading"><div class="spinner"></div><div class="loading-text">Loading...</div></div>`;
   }
+
+  // Show diagnostic message if still loading after 8s
+  const diagTimer = setTimeout(() => {
+    if (allContainers.length === 0) {
+      document.getElementById('gridWrap').innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">⏳</div>
+          <div class="empty-text">Taking longer than expected</div>
+          <div style="margin-top:14px;font-size:11px;color:var(--text-dim);line-height:1.8">
+            Check that the Docker socket is mounted correctly.<br>
+            Try opening <a href="/api/health" target="_blank" style="color:var(--accent)">/api/health</a> —
+            if it loads, Docker socket may be inaccessible.<br>
+            Try opening <a href="/api/containers" target="_blank" style="color:var(--accent)">/api/containers</a>
+            to see the raw error.<br><br>
+            <button onclick="loadContainers(true)" style="background:transparent;border:1px solid var(--accent);color:var(--accent);padding:5px 14px;font-family:inherit;cursor:pointer;letter-spacing:1px">Retry</button>
+          </div>
+        </div>`;
+    }
+  }, 8000);
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     const res = await fetch('/api/containers', { signal: controller.signal });
     clearTimeout(timeout);
+    clearTimeout(diagTimer);
     if (!res.ok) throw new Error(await res.text());
     const fresh = await res.json();
 

@@ -360,6 +360,8 @@ function formatBytes(bytes) {
   return (bytes / 1073741824).toFixed(2) + " GB";
 }
 
+app.get("/api/health", (req, res) => res.json({ ok: true }));
+
 const PORT = process.env.PORT || 3131;
 app.listen(PORT, () =>
   console.log(`Altitude Dashboard running on http://localhost:${PORT}`)
