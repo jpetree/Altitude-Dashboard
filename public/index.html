@@ -738,8 +738,32 @@ async function loadContainers(showSpinner = false) {
     document.getElementById('gridWrap').innerHTML =
       `<div class="loading"><div class="spinner"></div><div class="loading-text">Loading...</div></div>`;
   }
+
+  // Show diagnostic message if still loading after 8s
+  const diagTimer = setTimeout(() => {
+    if (allContainers.length === 0) {
+      document.getElementById('gridWrap').innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">⏳</div>
+          <div class="empty-text">Taking longer than expected</div>
+          <div style="margin-top:14px;font-size:11px;color:var(--text-dim);line-height:1.8">
+            Check that the Docker socket is mounted correctly.<br>
+            Try opening <a href="/api/health" target="_blank" style="color:var(--accent)">/api/health</a> —
+            if it loads, Docker socket may be inaccessible.<br>
+            Try opening <a href="/api/containers" target="_blank" style="color:var(--accent)">/api/containers</a>
+            to see the raw error.<br><br>
+            <button onclick="loadContainers(true)" style="background:transparent;border:1px solid var(--accent);color:var(--accent);padding:5px 14px;font-family:inherit;cursor:pointer;letter-spacing:1px">Retry</button>
+          </div>
+        </div>`;
+    }
+  }, 8000);
+
   try {
-    const res = await fetch('/api/containers');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch('/api/containers', { signal: controller.signal });
+    clearTimeout(timeout);
+    clearTimeout(diagTimer);
     if (!res.ok) throw new Error(await res.text());
     const fresh = await res.json();
 
@@ -754,7 +778,7 @@ async function loadContainers(showSpinner = false) {
       prevStates[c.id] = c.state;
     });
 
-    // Update stats
+    // Update stats bar
     const running = fresh.filter(c => c.state === 'running').length;
     document.getElementById('statTotal').textContent = fresh.length;
     document.getElementById('statRunning').textContent = running;
@@ -766,6 +790,9 @@ async function loadContainers(showSpinner = false) {
 
     allContainers = fresh;
     renderCards();
+
+    // Fetch per-container details in background (stats, health, env, volumes)
+    fresh.filter(c => c.state === 'running').forEach(c => loadContainerDetails(c.id));
   } catch (err) {
     document.getElementById('statusDot').className = 'dot error';
     document.getElementById('statusText').textContent = 'DISCONNECTED';
@@ -776,6 +803,19 @@ async function loadContainers(showSpinner = false) {
     showToast('Error: ' + err.message, 'error');
   }
   startRefreshRing();
+}
+
+async function loadContainerDetails(id) {
+  try {
+    const res = await fetch(`/api/containers/${id}/details`);
+    if (!res.ok) return;
+    const details = await res.json();
+    const idx = allContainers.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    allContainers[idx] = { ...allContainers[idx], ...details };
+    const card = document.querySelector(`.card[data-id="${id}"]`);
+    if (card) patchCard(card, allContainers[idx]);
+  } catch (_) {}
 }
 
 // ── Render ──
@@ -1019,7 +1059,7 @@ function cardInner(c) {
     <div class="card-header">
       <div class="card-icon editable" onclick="event.stopPropagation();openEditor('${c.id}')" title="Edit name/icon">${icon}</div>
       <div class="card-meta">
-        <div class="card-name ${isCustomName?'custom':'}">${escHtml(name)}</div>
+        <div class="card-name ${isCustomName?'custom':''}">${escHtml(name)}</div>
         <div class="card-image">${escHtml(imgShort)}</div>
       </div>
       <div class="badges">
