@@ -4,7 +4,9 @@ const path = require("path");
 const os = require("os");
 
 const app = express();
-const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+const docker = process.env.DOCKER_HOST
+  ? new Docker({ host: process.env.DOCKER_HOST, port: parseInt(process.env.DOCKER_PORT || "2375"), protocol: "http" })
+  : new Docker({ socketPath: "/var/run/docker.sock" });
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
